@@ -18,7 +18,7 @@ import { Mono } from './Table';
  * with.
  */
 export function ProxyConfigsPage() {
-  const { defaultConfig, sourceName, loading, error } = useMeshConfig();
+  const { defaultConfig, sourceName, namespace, loading, error } = useMeshConfig();
 
   return (
     <Box sx={{ pb: 6 }}>
@@ -27,6 +27,7 @@ export function ProxyConfigsPage() {
       <MeshDefaultSection
         defaultConfig={defaultConfig}
         sourceName={sourceName}
+        namespace={namespace}
         loading={loading}
         error={error}
       />
@@ -39,11 +40,13 @@ export function ProxyConfigsPage() {
 function MeshDefaultSection({
   defaultConfig,
   sourceName,
+  namespace,
   loading,
   error,
 }: {
   defaultConfig?: Record<string, unknown>;
   sourceName?: string;
+  namespace: string;
   loading: boolean;
   error: unknown;
 }) {
@@ -54,7 +57,7 @@ function MeshDefaultSection({
       <SectionBox title="Mesh default">
         <Alert severity={isForbidden(error) ? 'info' : 'warning'}>
           {isForbidden(error)
-            ? 'You do not have permission to read ConfigMaps in istio-system, so the mesh-wide proxy defaults cannot be shown.'
+            ? `You do not have permission to read ConfigMaps in ${namespace}, so the mesh-wide proxy defaults cannot be shown.`
             : 'The istio ConfigMap could not be read, so the mesh-wide proxy defaults cannot be shown.'}
         </Alert>
       </SectionBox>
@@ -67,7 +70,7 @@ function MeshDefaultSection({
         <Typography variant="body2" color="text.secondary">
           {sourceName
             ? `${sourceName} defines no meshConfig.defaultConfig, so proxies run with Istio's built-in defaults.`
-            : 'No istio ConfigMap was found in istio-system.'}
+            : `No istio ConfigMap was found in ${namespace}.`}
         </Typography>
       </SectionBox>
     );
@@ -97,7 +100,7 @@ function MeshDefaultSection({
   return (
     <SpecSection title="Mesh default" rows={rows}>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        From <Mono>istio-system/{sourceName}</Mono>, key <Mono>mesh</Mono> →{' '}
+        From <Mono>{`${namespace}/${sourceName}`}</Mono>, key <Mono>mesh</Mono> →{' '}
         <Mono>defaultConfig</Mono>. These apply to every proxy in the mesh unless a ProxyConfig
         below overrides them.
       </Typography>

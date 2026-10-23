@@ -50,4 +50,9 @@ describe('meshRootNamespace', () => {
   it('falls back to istio-system without a mesh config', () => {
     expect(meshRootNamespace(undefined)).toBe('istio-system');
   });
+
+  it('falls back to the control-plane namespace, as Istio does', () => {
+    expect(meshRootNamespace(undefined, 'aks-istio-system')).toBe('aks-istio-system');
+    expect(meshRootNamespace({ rootNamespace: 'mesh-root' }, 'aks-istio-system')).toBe('mesh-root');
+  });
 });

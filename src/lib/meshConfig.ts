@@ -1,6 +1,6 @@
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { useMemo } from 'react';
-import { ISTIO_SYSTEM_NAMESPACE } from './labels';
+import { useControlPlaneNamespace } from './controlPlane';
 import {
   MeshDefaultConfig,
   meshRootNamespace,
@@ -26,7 +26,9 @@ export interface MeshConfigResult {
   /** The whole parsed mesh config, for anything not covered above. */
   meshConfig?: Record<string, unknown>;
   /** The mesh root namespace, where mesh-wide policies live. */
-  rootNamespace?: string;
+  rootNamespace: string;
+  /** The control-plane namespace the ConfigMap is read from. */
+  namespace: string;
   /** Name of the ConfigMap the values came from. */
   sourceName?: string;
   loading: boolean;
@@ -35,13 +37,17 @@ export interface MeshConfigResult {
 }
 
 export function useMeshConfig(): MeshConfigResult {
-  const [configMaps, error] = K8s.ResourceClasses.ConfigMap.useList({
-    namespace: ISTIO_SYSTEM_NAMESPACE,
-  });
+  const { namespace, loading: namespaceLoading } = useControlPlaneNamespace();
+  const [configMaps, error] = K8s.ResourceClasses.ConfigMap.useList({ namespace });
 
   return useMemo(() => {
-    if (configMaps === null) {
-      return { loading: !error, error };
+    if (namespaceLoading || configMaps === null) {
+      return {
+        rootNamespace: meshRootNamespace(undefined, namespace),
+        namespace,
+        loading: namespaceLoading || !error,
+        error,
+      };
     }
 
     const candidate = pickMeshConfigMap(configMaps as any[]);
@@ -49,13 +55,14 @@ export function useMeshConfig(): MeshConfigResult {
 
     return {
       meshConfig,
-      rootNamespace: meshRootNamespace(meshConfig),
+      rootNamespace: meshRootNamespace(meshConfig, namespace),
+      namespace,
       defaultConfig: meshConfig?.defaultConfig as MeshDefaultConfig | undefined,
       sourceName: candidate?.metadata.name,
       loading: false,
       error,
     };
-  }, [configMaps, error]);
+  }, [namespace, namespaceLoading, configMaps, error]);
 }
 
 /** True when an API error is a permission problem rather than a missing resource. */
