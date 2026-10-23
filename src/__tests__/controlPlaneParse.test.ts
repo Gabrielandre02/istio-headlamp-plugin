@@ -42,10 +42,18 @@ describe('isIstiod', () => {
 
 describe('dataPlaneNamespaces', () => {
   it('still looks in istio-system when istiod runs elsewhere', () => {
-    expect(dataPlaneNamespaces('aks-istio-system')).toEqual(['aks-istio-system', 'istio-system']);
+    expect(dataPlaneNamespaces('aks-istio-system')).toEqual([
+      'aks-istio-system',
+      'istio-system',
+      'kube-system',
+    ]);
   });
 
   it('lists istio-system once', () => {
-    expect(dataPlaneNamespaces('istio-system')).toEqual(['istio-system']);
+    expect(dataPlaneNamespaces('istio-system')).toEqual(['istio-system', 'kube-system']);
+  });
+
+  it('lists kube-system once when istiod runs there', () => {
+    expect(dataPlaneNamespaces('kube-system')).toEqual(['kube-system', 'istio-system']);
   });
 });

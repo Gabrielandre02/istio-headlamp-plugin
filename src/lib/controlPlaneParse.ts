@@ -4,7 +4,7 @@
  * Kept free of Headlamp and React imports so the rule can be tested without a
  * cluster; the hook in ./controlPlane.ts wires it to the API.
  */
-import { ISTIO_SYSTEM_NAMESPACE } from './labels';
+import { ISTIO_SYSTEM_NAMESPACE, KUBE_SYSTEM_NAMESPACE } from './labels';
 
 const ISTIOD_APP = 'istiod';
 
@@ -33,10 +33,9 @@ export function controlPlaneNamespace(istiods: { metadata: { namespace?: string 
 
 /**
  * Where to look for ztunnel and istio-cni. They usually sit next to istiod,
- * but can stay in `istio-system` when only istiod was moved.
+ * but can stay in `istio-system` when only istiod was moved, and GKE needs them
+ * in `kube-system` for its node-critical priority class quota.
  */
 export function dataPlaneNamespaces(namespace: string): string[] {
-  return namespace === ISTIO_SYSTEM_NAMESPACE
-    ? [ISTIO_SYSTEM_NAMESPACE]
-    : [namespace, ISTIO_SYSTEM_NAMESPACE];
+  return [...new Set([namespace, ISTIO_SYSTEM_NAMESPACE, KUBE_SYSTEM_NAMESPACE])];
 }
