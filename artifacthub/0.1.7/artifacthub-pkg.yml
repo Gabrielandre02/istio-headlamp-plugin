@@ -1,0 +1,277 @@
+# Package metadata ArtifactHub reads on every scan of this repository.
+#
+# version, archive-url and archive-checksum must agree with a published GitHub
+# release, or Headlamp's plugin catalogue will fail the integrity check on
+# install. The Release workflow keeps all three in step; do not hand-edit them.
+version: 0.1.7
+digest: readme-1
+name: istio-headlamp-plugin
+displayName: Istio
+createdAt: "2026-10-26T13:19:29Z"
+description: >-
+  Istio service mesh UI with first-class ambient mode support. Shows every
+  resource's spec without opening the editor, surfaces waypoints and namespace
+  enrolment, and flags L7 authorization policies that nothing enforces.
+license: Apache-2.0
+homeURL: https://github.com/eottabom/istio-headlamp-plugin
+logoURL: https://raw.githubusercontent.com/cncf/artwork/main/projects/istio/icon/color/istio-icon-color.svg
+keywords:
+  - istio
+  - service-mesh
+  - ambient
+  - waypoint
+  - networking
+  - security
+changes:
+  - kind: fixed
+    description: "Find the Istio control plane outside istio-system (#2)"
+  - kind: fixed
+    description: "Name the release archive as npm packs it"
+links:
+  - name: source
+    url: https://github.com/eottabom/istio-headlamp-plugin
+maintainers:
+  - name: eottabom
+    email: snoopy12oyk@gmail.com
+screenshots:
+  - title: Mesh Overview
+    url: https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/mesh-overview.png
+  - title: L7 enforcement check on an AuthorizationPolicy
+    url: https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/l7-enforcement.png
+  - title: DestinationRule detail, rendered from the spec
+    url: https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/destinationrule.png
+  - title: Waypoint coverage
+    url: https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/waypoints.png
+  - title: Istio context on a Service page
+    url: https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/service-context.png
+readme: |
+  # istio-headlamp-plugin
+
+  An Istio service mesh plugin for [Headlamp](https://headlamp.dev), built around two things
+  existing Istio UIs in Headlamp do not do:
+
+  **1. Every resource shows its spec, without opening the editor.**
+  Istio custom resources are almost entirely `spec`. A detail view that renders only metadata
+  and conditions tells you nothing about a `DestinationRule` or `ServiceEntry`, so you end up
+  clicking *Edit* just to read the configuration. Here, typed sections render the parts we
+  model, and a generic recursive renderer covers everything else, including fields added by
+  Istio releases newer than this plugin.
+
+  **2. Ambient mode is first-class.**
+  Waypoints, ztunnel, `istio-cni`, namespace enrolment and the L4/L7 split are surfaced
+  directly, including the case where an L7 `AuthorizationPolicy` reaches ztunnel instead of a
+  waypoint and fails closed, denying the traffic it was meant to filter.
+
+  ![Demo](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/demo.gif)
+
+  ## Features
+
+  Every Istio resource gets its own entry in the sidebar, and only for CRDs the cluster
+  actually has.
+
+  <img src="https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/sidebar.png" alt="Istio section of the Headlamp sidebar" width="260">
+
+  ### Spec-first detail views
+
+  | Resource | What the detail page shows |
+  |---|---|
+  | `DestinationRule` | Load balancing, connection pool (TCP + HTTP), outlier detection, upstream TLS, subsets with per-subset overrides, port-level settings |
+  | `ServiceEntry` | Hosts, location, resolution, ports, endpoints table, and a warning when the combination silently does nothing (e.g. `STATIC` with no endpoints) |
+  | `VirtualService` | Per-route match summary, weighted destinations with a total-weight check, timeouts/retries/fault/mirror |
+  | `Gateway` (Istio API) | Servers table with port, protocol, hosts, TLS mode and credential |
+  | `AuthorizationPolicy` | Action, rules as from/to/when, and the ambient L7 enforcement check |
+  | `PeerAuthentication` | mTLS mode, port-level overrides, warnings for `PERMISSIVE` and `DISABLE` |
+  | `RequestAuthentication` | JWT rules with issuer, audiences, JWKS source and token location |
+  | `Telemetry` | Tracing, metrics and access logging, with sampling percentage |
+  | `WasmPlugin` | URL, phase, priority and plugin config |
+  | `Sidecar`, `WorkloadEntry`, `WorkloadGroup`, `ProxyConfig`, `EnvoyFilter`, `TrafficExtension` | Typed header fields plus the full spec renderer |
+
+  ![DestinationRule detail](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/destinationrule.png)
+
+  Lists carry the fields that make a resource identifiable, so a page of policies is readable
+  without opening any of them.
+
+  ![AuthorizationPolicy list](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/authorizationpolicies.png)
+
+  Every page ends with a **Full spec** section, so nothing in the resource is ever hidden.
+
+  ### Ambient mode
+
+  - **Mesh Overview**: control-plane version, ztunnel and `istio-cni` DaemonSet health,
+    ambient vs sidecar namespace counts, installed Istio APIs.
+  - **Waypoints**: every `istio-waypoint` Gateway, what it is enrolled for (resolved by
+    scanning `istio.io/use-waypoint` labels across namespaces and Services), attached L7
+    policies, and a warning for waypoints nothing routes through.
+  - **L7 enforcement check**: an `AuthorizationPolicy` using HTTP methods, paths, hosts or
+    JWT claims is checked against what actually enforces it. Two Istio rules decide this, and
+    both are easy to get wrong by hand:
+    - only a `targetRef` attaches a policy to a waypoint. A `selector`, or neither, leaves the
+      policy with ztunnel however the namespace is labelled.
+    - ztunnel cannot evaluate L7, and does not skip what it cannot evaluate: the policy
+      **fails closed and denies**.
+
+    So the page names the enforcement point rather than guessing. A `use-waypoint` label is
+    checked against the Gateways that exist, because a typo in that label otherwise reads as
+    full coverage. When the mesh state, Services or Namespaces cannot be read, the page says
+    it cannot determine enforcement instead of assuming.
+
+    ![L7 enforcement check](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/l7-enforcement.png)
+
+    Above: a `DENY` policy with HTTP conditions, attached by `targetRef` to a Service that opted
+    out of its waypoint. ztunnel ends up enforcing it, cannot evaluate the conditions, and denies.
+  - **Mesh column**: Headlamp's own Pod and workload lists gain an `Ambient` / `Sidecar` /
+    `Out of mesh` column.
+
+  ![Waypoints](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/waypoints.png)
+
+  ![Mesh column on the Pod list](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/pods-mesh-column.png)
+
+  ### Istio context on built-in pages
+
+  Istio sections are injected into Headlamp's own resource views:
+
+  - **Service** → VirtualServices routing to it, DestinationRules for its host, ServiceEntries
+    claiming that host, AuthorizationPolicies, and its waypoint.
+  - **Pod** → mesh state with the reason, proxy image, waypoint.
+  - **Namespace** → dataplane mode, default waypoint, and the *effective* mTLS mode resolved
+    from namespace and mesh-wide `PeerAuthentication`.
+
+  The **Istio** section on the `reviews` Service links its routing resources,
+  authorization policies and waypoint:
+
+  ![Istio section on the reviews Service: routing resources, policies and waypoint](https://raw.githubusercontent.com/eottabom/istio-headlamp-plugin/main/docs/images/service-context.png)
+
+  ## Compatibility
+
+  - Istio 1.2x and 1.3x. Each resource registers every API version Istio serves for it
+    (`networking.istio.io/v1`, `/v1beta1`, `/v1alpha3`, …) and Headlamp falls back through them.
+  - Sidebar entries appear only for CRDs actually installed in the cluster.
+  - Works against sidecar-only meshes; ambient views explain themselves when ztunnel is absent.
+install: |
+  ### Download the GitHub release package
+
+  Download [`eottabom-istio-headlamp-plugin-0.1.7.tar.gz`](https://github.com/eottabom/istio-headlamp-plugin/releases/download/v0.1.7/eottabom-istio-headlamp-plugin-0.1.7.tar.gz)
+  from [GitHub Releases](https://github.com/eottabom/istio-headlamp-plugin/releases).
+  Use the plugin `.tar.gz` asset under **Assets**, not GitHub's **Source code** archives.
+  The package contains the built plugin; Node.js and npm are not needed to install it.
+
+  ### Headlamp desktop (Linux / macOS)
+
+  Download and extract the package into the desktop app's plugin directory:
+
+  ```sh
+  VERSION=0.1.7
+  ARCHIVE="istio-headlamp-plugin-${VERSION}.tar.gz"
+  curl -fL --output "$ARCHIVE" \
+    "https://github.com/eottabom/istio-headlamp-plugin/releases/download/v${VERSION}/${ARCHIVE}"
+  mkdir -p "$HOME/.config/Headlamp/plugins"
+  tar -xzf "$ARCHIVE" -C "$HOME/.config/Headlamp/plugins"
+  ```
+
+  On Windows, extract the same package into `%APPDATA%\Headlamp\Config\plugins`.
+  Restart Headlamp after installing. The extracted layout must be:
+
+  ```text
+  plugins/
+  └── istio-headlamp-plugin/
+      ├── main.js
+      └── package.json
+  ```
+
+  Keep any other files included in the package alongside these files.
+
+  ### Headlamp in a cluster or container (GitHub Packages)
+
+  The [GitHub Package](https://github.com/eottabom/istio-headlamp-plugin/pkgs/container/istio-headlamp-plugin)
+  `ghcr.io/eottabom/istio-headlamp-plugin:0.1.7` contains the same built plugin at
+  `/plugins/istio-headlamp-plugin`. It is a plugin delivery image, not a Headlamp server.
+
+  Add these fields to your Headlamp Deployment's Pod spec, retaining its existing image,
+  arguments, credentials and other settings:
+
+  ```yaml
+  spec:
+    template:
+      spec:
+        initContainers:
+          - name: install-istio-plugin
+            image: ghcr.io/eottabom/istio-headlamp-plugin:0.1.7
+            command: ["/bin/sh", "-c"]
+            args: ["cp -R /plugins/. /headlamp/plugins/"]
+            volumeMounts:
+              - name: headlamp-plugins
+                mountPath: /headlamp/plugins
+        containers:
+          - name: headlamp # match your existing Headlamp container name
+            # Keep your existing image and args; add -plugins-dir=/headlamp/plugins.
+            volumeMounts:
+              - name: headlamp-plugins
+                mountPath: /headlamp/plugins
+        volumes:
+          - name: headlamp-plugins
+            emptyDir: {}
+  ```
+
+  This is a Deployment fragment, not a standalone manifest. If you already mount a plugin
+  volume, reuse it instead of replacing it. The init container copies the plugin before
+  Headlamp starts; configure Headlamp with `-plugins-dir=/headlamp/plugins` to load it.
+
+  For a local container, populate a directory with the package and mount it into Headlamp:
+
+  ```sh
+  mkdir -p ./headlamp-plugins
+  docker run --rm \
+    -v "$PWD/headlamp-plugins:/headlamp/plugins" \
+    ghcr.io/eottabom/istio-headlamp-plugin:0.1.7
+  ```
+
+  Mount that directory at `/headlamp/plugins` in your Headlamp container. Alternatively,
+  extract the release tarball into the same directory. See Headlamp's
+  [deployment guide](https://headlamp.dev/docs/latest/development/plugins/building/)
+  for plugin volumes and init containers.
+
+  ### Plugin Catalog (desktop only)
+
+  If your desktop app includes **Plugin Catalog**, you can also search there for **Istio**.
+  This is a community plugin, so you may need to allow non-official plugins in the catalog.
+  Check that the source is `eottabom/istio-headlamp-plugin` before installing.
+  The **Plugins** settings page and the in-cluster UI are not the desktop Plugin Catalog.
+  [Artifact Hub](https://artifacthub.io/packages/headlamp/istio-headlamp-plugin/istio-headlamp-plugin)
+  indexes the package; its archive is hosted on GitHub Releases.
+
+  ### Build a package from source
+
+  For development, use Node.js 22 and build the same installable archive:
+
+  ```sh
+  git clone https://github.com/eottabom/istio-headlamp-plugin.git
+  cd istio-headlamp-plugin
+  npm ci
+  npm run build
+  npm run package
+  ```
+
+  Install the resulting `istio-headlamp-plugin-<version>.tar.gz` using the extraction
+  steps above. When copying a build manually, copy the **contents** of `dist/` and
+  `package.json` into `plugins/istio-headlamp-plugin/`; `main.js` must be directly inside
+  that directory, not inside a nested `dist/` directory. `dev/deploy.sh` copies this
+  layout to the Linux/macOS desktop directory and any additional paths you pass to it.
+
+  ### What it needs to read
+
+  The plugin needs read access to:
+
+  - **Istio APIs:** networking.istio.io, security.istio.io, telemetry.istio.io, extensions.istio.io
+  - **Gateway API:** Gateway objects
+  - **Kubernetes resources:** Namespaces, Services, Pods, Deployments and DaemonSets
+  - **Optional:** ConfigMaps in `istio-system`, to find a custom mesh root namespace (falls back to `istio-system`)
+
+  Views that cannot read something say so rather than guessing.
+annotations:
+  headlamp/plugin/archive-url: "https://github.com/eottabom/istio-headlamp-plugin/releases/download/v0.1.7/eottabom-istio-headlamp-plugin-0.1.7.tar.gz"
+  headlamp/plugin/archive-checksum: "SHA256:a46055722398cfb80dbc8eb084487d4094a7d9631ba6ef61251e90fbf9b34e3b"
+  # Registry APIs this plugin uses: registerRoute, registerSidebarEntry,
+  # registerDetailsViewSection and registerResourceTableColumnsProcessor. The
+  # last of those sets the floor; the others are far older.
+  headlamp/plugin/version-compat: ">=0.23"
+  headlamp/plugin/distro-compat: in-cluster,web,docker-desktop,desktop
