@@ -46,10 +46,14 @@ export function parseMeshConfig(raw: string | undefined): Record<string, unknown
 }
 
 /**
- * The namespace mesh-wide policies live in. `istio-system` unless meshConfig
- * says otherwise, and plenty of installs do say otherwise.
+ * The namespace mesh-wide policies live in. Istio defaults it to the
+ * control-plane namespace unless meshConfig says otherwise, and plenty of
+ * installs do say otherwise.
  */
-export function meshRootNamespace(meshConfig: Record<string, unknown> | undefined): string {
+export function meshRootNamespace(
+  meshConfig: Record<string, unknown> | undefined,
+  fallback: string = ISTIO_SYSTEM_NAMESPACE
+): string {
   const root = meshConfig?.rootNamespace;
-  return typeof root === 'string' && root ? root : ISTIO_SYSTEM_NAMESPACE;
+  return typeof root === 'string' && root ? root : fallback;
 }

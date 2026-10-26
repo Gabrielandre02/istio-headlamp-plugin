@@ -7,7 +7,7 @@ import { MeshBadge } from '../components/common/Badges';
 import { ChipList } from '../components/common/SpecSection';
 import { Mono, SpecTable } from '../components/detail/Table';
 import { istiodVersion, useIstioCrds, useMeshStatus } from '../lib/detect';
-import { ISTIO_SYSTEM_NAMESPACE, WAYPOINT_FOR } from '../lib/labels';
+import { WAYPOINT_FOR } from '../lib/labels';
 import { namespaceMeshState, resolveWaypoint } from '../lib/mesh';
 
 /**
@@ -37,8 +37,8 @@ export function MeshOverview() {
     return (
       <SectionBox title="Istio">
         <Alert severity="warning">
-          No <Mono>istiod</Mono> Deployment found in <Mono>{ISTIO_SYSTEM_NAMESPACE}</Mono>. Either
-          Istio is not installed, it lives in another namespace, or this account cannot read that
+          No <Mono>istiod</Mono> Deployment found in <Mono>{status.namespace}</Mono>. Either Istio
+          is not installed, it lives in another namespace, or this account cannot read that
           namespace.
         </Alert>
       </SectionBox>

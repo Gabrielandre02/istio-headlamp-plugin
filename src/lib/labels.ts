@@ -19,3 +19,4 @@ export const GATEWAY_CLASS_NAME = 'gateway.networking.k8s.io/gateway-class-name'
 
 export const PROXY_CONTAINER = 'istio-proxy';
 export const ISTIO_SYSTEM_NAMESPACE = 'istio-system';
+export const KUBE_SYSTEM_NAMESPACE = 'kube-system';

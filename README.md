@@ -140,8 +140,9 @@ The plugin needs read access to:
 
 - **Istio APIs:** networking.istio.io, security.istio.io, telemetry.istio.io, extensions.istio.io
 - **Gateway API:** Gateway objects
-- **Kubernetes resources:** Namespaces, Services, Pods, Deployments and DaemonSets
-- **Optional:** ConfigMaps in `istio-system`, to find a custom mesh root namespace (falls back to `istio-system`)
+- **Kubernetes resources:** Namespaces, Services, Pods, Deployments and DaemonSets (ztunnel and istio-cni are looked up in the control-plane namespace, `istio-system` and `kube-system`)
+- **Optional:** Deployments across namespaces, to find the istiod control-plane namespace (such as `aks-istio-system` on the AKS add-on; falls back to `istio-system`)
+- **Optional:** ConfigMaps in that namespace, to find a custom mesh root namespace (falls back to the control-plane namespace)
 
 Views that cannot read something say so rather than guessing.
 

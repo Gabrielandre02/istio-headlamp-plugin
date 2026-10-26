@@ -1,7 +1,8 @@
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { useMemo } from 'react';
-import { ISTIO_SYSTEM_NAMESPACE, WAYPOINT_GATEWAY_CLASS } from './labels';
-import { meshRootNamespace, useMeshConfig } from './meshConfig';
+import { dataPlaneNamespaces, isIstiod, useControlPlaneNamespace } from './controlPlane';
+import { WAYPOINT_GATEWAY_CLASS } from './labels';
+import { useMeshConfig } from './meshConfig';
 
 const CRD = K8s.ResourceClasses.CustomResourceDefinition;
 const Deployment = K8s.ResourceClasses.Deployment;
@@ -65,7 +66,9 @@ export function isCrdInstalled(
 export interface MeshStatus {
   /** Every Gateway API Gateway, not only the waypoints. */
   gateways: any[];
-  /** istiod deployments in istio-system, usually one per revision. */
+  /** The namespace istiod runs in, usually `istio-system`. */
+  namespace: string;
+  /** istiod deployments in that namespace, usually one per revision. */
   istiod: any[];
   /** ztunnel DaemonSet; present only in ambient installs. */
   ztunnel: any | null;
@@ -86,12 +89,17 @@ export interface MeshStatus {
  * Headlamp users viewing a production cluster will not have.
  */
 export function useMeshStatus(): MeshStatus {
-  const [deployments] = Deployment.useList({ namespace: ISTIO_SYSTEM_NAMESPACE });
-  const [daemonSets] = DaemonSet.useList({ namespace: ISTIO_SYSTEM_NAMESPACE });
+  const controlPlane = useControlPlaneNamespace();
+  const dataPlane = useMemo(
+    () => dataPlaneNamespaces(controlPlane.namespace),
+    [controlPlane.namespace]
+  );
+  const [deployments] = Deployment.useList({ namespace: controlPlane.namespace });
+  const [daemonSets] = DaemonSet.useList({ namespace: dataPlane });
   const [gateways] = GatewayClass.useList();
 
   return useMemo(() => {
-    const istiod = (deployments ?? []).filter(d => d.metadata.name.startsWith('istiod'));
+    const istiod = (deployments ?? []).filter(isIstiod);
     const ztunnel = (daemonSets ?? []).find(d => d.metadata.name.includes('ztunnel')) ?? null;
     const cni = (daemonSets ?? []).find(d => d.metadata.name.includes('istio-cni')) ?? null;
     const waypoints = (gateways ?? []).filter(
@@ -99,15 +107,16 @@ export function useMeshStatus(): MeshStatus {
     );
 
     return {
+      namespace: controlPlane.namespace,
       istiod,
       ztunnel,
       cni,
       gateways: gateways ?? [],
       waypoints,
       ambientEnabled: Boolean(ztunnel),
-      loading: deployments === null || daemonSets === null,
+      loading: controlPlane.loading || deployments === null || daemonSets === null,
     };
-  }, [deployments, daemonSets, gateways]);
+  }, [controlPlane, deployments, daemonSets, gateways]);
 }
 
 /** The image tag of the first istiod deployment, e.g. `1.30.1-distroless`. */
@@ -119,10 +128,9 @@ export function istiodVersion(istiod: any[]): string | undefined {
 
 /**
  * The mesh root namespace, where mesh-wide PeerAuthentication and
- * AuthorizationPolicy live. Falls back to `istio-system` when the mesh config
- * is missing or unreadable.
+ * AuthorizationPolicy live. Falls back to the control-plane namespace when the
+ * mesh config is missing or unreadable.
  */
 export function useRootNamespace(): string {
-  const { meshConfig } = useMeshConfig();
-  return meshRootNamespace(meshConfig);
+  return useMeshConfig().rootNamespace;
 }
