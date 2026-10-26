@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { controlPlaneNamespace, dataPlaneNamespaces, isIstiod } from '../lib/controlPlaneParse';
+import {
+  controlPlaneNamespace,
+  dataPlaneNamespaces,
+  dataPlaneResourceUnknown,
+  forbiddenDataPlaneNamespaces,
+  isIstiod,
+} from '../lib/controlPlaneParse';
 
 const istiod = (namespace: string, name = 'istiod') => ({ metadata: { name, namespace } });
 
@@ -55,5 +61,47 @@ describe('dataPlaneNamespaces', () => {
 
   it('lists kube-system once when istiod runs there', () => {
     expect(dataPlaneNamespaces('kube-system')).toEqual(['kube-system', 'istio-system']);
+  });
+});
+
+describe('dataPlaneResourceUnknown', () => {
+  const forbidden = { status: 403 };
+  const notFound = { status: 404 };
+
+  it('is unknown when a namespace was forbidden and no ztunnel was found', () => {
+    expect(dataPlaneResourceUnknown([forbidden], false)).toBe(true);
+  });
+
+  it('is settled by a ztunnel that was found, whatever the other namespaces did', () => {
+    expect(dataPlaneResourceUnknown([forbidden], true)).toBe(false);
+  });
+
+  it('reads an absent ztunnel as absent when every namespace answered', () => {
+    expect(dataPlaneResourceUnknown([], false)).toBe(false);
+    expect(dataPlaneResourceUnknown(null, false)).toBe(false);
+    expect(dataPlaneResourceUnknown(undefined, false)).toBe(false);
+  });
+
+  it('only treats a permission error as unknown', () => {
+    expect(dataPlaneResourceUnknown([notFound], false)).toBe(false);
+  });
+
+  it('is unknown when one namespace of several was forbidden', () => {
+    expect(dataPlaneResourceUnknown([null, forbidden, undefined], false)).toBe(true);
+  });
+
+  it('returns only namespaces where DaemonSet listing was forbidden', () => {
+    expect(
+      forbiddenDataPlaneNamespaces([
+        { status: 403, namespace: 'kube-system' },
+        { status: 404, namespace: 'istio-system' },
+        { status: 403, namespace: 'kube-system' },
+        null,
+      ])
+    ).toEqual(['kube-system']);
+  });
+
+  it('does not invent a namespace when an error has none', () => {
+    expect(forbiddenDataPlaneNamespaces([{ status: 403 }])).toEqual([]);
   });
 });

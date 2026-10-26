@@ -1,6 +1,12 @@
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { useMemo } from 'react';
-import { dataPlaneNamespaces, isIstiod, useControlPlaneNamespace } from './controlPlane';
+import {
+  dataPlaneNamespaces,
+  dataPlaneResourceUnknown,
+  forbiddenDataPlaneNamespaces,
+  isIstiod,
+  useControlPlaneNamespace,
+} from './controlPlane';
 import { WAYPOINT_GATEWAY_CLASS } from './labels';
 import { useMeshConfig } from './meshConfig';
 
@@ -76,8 +82,22 @@ export interface MeshStatus {
   cni: any | null;
   /** Gateways whose class is `istio-waypoint`. */
   waypoints: any[];
-  /** True when a ztunnel DaemonSet exists. */
+  /** Whether the control plane is still being checked. */
+  controlPlaneLoading: boolean;
+  /** A missing control plane could not be confirmed because Deployment access was denied. */
+  controlPlaneUnknown: boolean;
+  /** Namespaces where a namespaced control-plane query was forbidden. */
+  controlPlaneForbiddenNamespaces: string[];
+  /** True when a ztunnel DaemonSet was found; this does not imply it is healthy. */
   ambientEnabled: boolean;
+  /** A missing ztunnel could not be confirmed because a namespace was forbidden. */
+  ztunnelUnknown: boolean;
+  /** A missing istio-cni DaemonSet could not be confirmed because a namespace was forbidden. */
+  cniUnknown: boolean;
+  /** Namespaces where this account could not list DaemonSets. */
+  dataPlaneForbiddenNamespaces: string[];
+  /** Whether DaemonSet queries are still pending. */
+  dataPlaneLoading: boolean;
   loading: boolean;
 }
 
@@ -94,14 +114,25 @@ export function useMeshStatus(): MeshStatus {
     () => dataPlaneNamespaces(controlPlane.namespace),
     [controlPlane.namespace]
   );
-  const [deployments] = Deployment.useList({ namespace: controlPlane.namespace });
-  const [daemonSets] = DaemonSet.useList({ namespace: dataPlane });
+  const deploymentQuery = Deployment.useList({ namespace: controlPlane.namespace });
+  const [deployments] = deploymentQuery;
+  const deploymentErrors = deploymentQuery.errors;
+  // One namespace of the three can be forbidden while the others answer, and
+  // the single error of the tuple stays null then; the per-namespace failures
+  // are in `errors`.
+  const daemonSetQuery = DaemonSet.useList({ namespace: dataPlane });
+  const [daemonSets] = daemonSetQuery;
+  const daemonSetErrors = daemonSetQuery.errors;
   const [gateways] = GatewayClass.useList();
 
   return useMemo(() => {
     const istiod = (deployments ?? []).filter(isIstiod);
+    const controlPlaneUnknown =
+      istiod.length === 0 &&
+      (controlPlane.unknown || (deploymentErrors ?? []).some(error => error?.status === 403));
     const ztunnel = (daemonSets ?? []).find(d => d.metadata.name.includes('ztunnel')) ?? null;
     const cni = (daemonSets ?? []).find(d => d.metadata.name.includes('istio-cni')) ?? null;
+
     const waypoints = (gateways ?? []).filter(
       g => (g.jsonData as any)?.spec?.gatewayClassName === WAYPOINT_GATEWAY_CLASS
     );
@@ -109,14 +140,38 @@ export function useMeshStatus(): MeshStatus {
     return {
       namespace: controlPlane.namespace,
       istiod,
+      controlPlaneLoading: controlPlane.loading || deploymentQuery.isLoading,
+      controlPlaneUnknown,
+      controlPlaneForbiddenNamespaces: [
+        ...new Set([
+          ...controlPlane.forbiddenNamespaces,
+          ...forbiddenDataPlaneNamespaces(deploymentErrors),
+        ]),
+      ],
       ztunnel,
       cni,
       gateways: gateways ?? [],
       waypoints,
       ambientEnabled: Boolean(ztunnel),
-      loading: controlPlane.loading || deployments === null || daemonSets === null,
+      ztunnelUnknown:
+        !daemonSetQuery.isLoading && dataPlaneResourceUnknown(daemonSetErrors, Boolean(ztunnel)),
+      cniUnknown:
+        !daemonSetQuery.isLoading && dataPlaneResourceUnknown(daemonSetErrors, Boolean(cni)),
+      dataPlaneForbiddenNamespaces: forbiddenDataPlaneNamespaces(daemonSetErrors),
+      dataPlaneLoading: daemonSetQuery.isLoading,
+      loading: controlPlane.loading || deploymentQuery.isLoading || daemonSetQuery.isLoading,
     };
-  }, [controlPlane, deployments, daemonSets, gateways]);
+  }, [
+    controlPlane,
+    dataPlane,
+    deploymentQuery.isLoading,
+    deploymentErrors,
+    deployments,
+    daemonSetQuery.isLoading,
+    daemonSets,
+    daemonSetErrors,
+    gateways,
+  ]);
 }
 
 /** The image tag of the first istiod deployment, e.g. `1.30.1-distroless`. */

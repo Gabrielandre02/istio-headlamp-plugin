@@ -33,7 +33,7 @@ export function MeshOverview() {
     };
   }, [namespaces]);
 
-  if (!status.loading && status.istiod.length === 0) {
+  if (!status.controlPlaneLoading && !status.controlPlaneUnknown && status.istiod.length === 0) {
     return (
       <SectionBox title="Istio">
         <Alert severity="warning">
@@ -64,40 +64,93 @@ export function MeshOverview() {
         <StatCard
           icon="mdi:cog-outline"
           label="Control plane"
-          value={version ?? 'unknown'}
-          detail={`${status.istiod.length} istiod deployment${
-            status.istiod.length === 1 ? '' : 's'
-          }`}
-          tone={status.istiod.length > 0 ? 'ok' : 'bad'}
+          value={
+            status.controlPlaneLoading
+              ? 'Loading…'
+              : status.controlPlaneUnknown
+              ? 'Cannot determine'
+              : version ?? 'Not found'
+          }
+          detail={
+            status.controlPlaneLoading
+              ? 'Checking Deployments'
+              : status.controlPlaneUnknown
+              ? `Deployment access denied in ${
+                  status.controlPlaneForbiddenNamespaces.join(', ') || 'the cluster'
+                }`
+              : `${status.istiod.length} istiod deployment${status.istiod.length === 1 ? '' : 's'}`
+          }
+          tone={
+            status.controlPlaneLoading
+              ? 'warn'
+              : status.controlPlaneUnknown
+              ? 'warn'
+              : status.istiod.length > 0
+              ? 'ok'
+              : 'bad'
+          }
         />
         <StatCard
           icon="mdi:waves"
           label="Data plane mode"
           value={
-            status.ambientEnabled
+            status.dataPlaneLoading
+              ? 'Loading…'
+              : status.ztunnelUnknown
+              ? 'Cannot determine'
+              : status.ambientEnabled
               ? enrolment.sidecar > 0
                 ? 'Ambient + sidecar'
                 : 'Ambient'
               : 'Sidecar'
           }
-          detail={describeEnrolment(enrolment)}
-          tone="ok"
+          detail={
+            status.dataPlaneLoading
+              ? 'Checking DaemonSets'
+              : status.ztunnelUnknown
+              ? 'DaemonSet access denied'
+              : describeEnrolment(enrolment)
+          }
+          tone={status.dataPlaneLoading || status.ztunnelUnknown ? 'warn' : 'ok'}
         />
         <DaemonSetCard
           icon="mdi:tunnel-outline"
           label="ztunnel"
           ds={status.ztunnel}
           missingNote="not installed (sidecar mesh)"
+          unknown={status.ztunnelUnknown}
+          loading={status.dataPlaneLoading}
+          forbiddenNamespaces={status.dataPlaneForbiddenNamespaces}
         />
         <DaemonSetCard
           icon="mdi:lan-connect"
           label="istio-cni"
           ds={status.cni}
           missingNote="not installed"
+          unknown={status.cniUnknown}
+          loading={status.dataPlaneLoading}
+          forbiddenNamespaces={status.dataPlaneForbiddenNamespaces}
         />
       </Box>
 
-      {status.ambientEnabled && !status.cni && (
+      {(status.ztunnelUnknown || status.cniUnknown) && (
+        <Box sx={{ px: 2, pt: 2 }}>
+          <Alert severity="info">
+            {status.ztunnelUnknown
+              ? 'Ambient mode could not be confirmed'
+              : 'Ambient mode was confirmed by ztunnel, but istio-cni could not be confirmed'}
+            . DaemonSet access was denied in{' '}
+            <Mono>
+              {status.dataPlaneForbiddenNamespaces.length > 0
+                ? status.dataPlaneForbiddenNamespaces.join(', ')
+                : 'one or more namespaces'}
+            </Mono>
+            .
+          </Alert>
+        </Box>
+      )}
+
+      {status.ambientEnabled && !status.cni && !status.cniUnknown && (
         <Box sx={{ px: 2, pt: 2 }}>
           <Alert severity="error">
             ztunnel is running but the <Mono>istio-cni</Mono> DaemonSet is missing. Ambient mode
@@ -293,14 +346,37 @@ function DaemonSetCard({
   label,
   ds,
   missingNote,
+  unknown,
+  loading,
+  forbiddenNamespaces = [],
 }: {
   icon: string;
   label: string;
   ds: any;
   missingNote: string;
+  unknown?: boolean;
+  loading?: boolean;
+  forbiddenNamespaces?: string[];
 }) {
+  if (loading && !ds) {
+    return (
+      <StatCard
+        icon={icon}
+        label={label}
+        value="Loading…"
+        detail="Checking DaemonSets"
+        tone="warn"
+      />
+    );
+  }
   if (!ds) {
-    return <StatCard icon={icon} label={label} value="absent" detail={missingNote} tone="warn" />;
+    // Absent and unreadable look the same from here, so say which one it is.
+    const deniedIn =
+      forbiddenNamespaces.length > 0 ? forbiddenNamespaces.join(', ') : 'one or more namespaces';
+    const [value, detail] = unknown
+      ? ['unknown', `Access denied in ${deniedIn}`]
+      : ['absent', missingNote];
+    return <StatCard icon={icon} label={label} value={value} detail={detail} tone="warn" />;
   }
   const s = ds.jsonData?.status ?? {};
   const ready = s.numberReady ?? 0;

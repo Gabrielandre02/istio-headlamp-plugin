@@ -25,7 +25,8 @@ interface Coverage {
  * do with kubectl, so it belongs in the UI.
  */
 export function WaypointsPage() {
-  const { waypoints, ambientEnabled } = useMeshStatus();
+  const { waypoints, ambientEnabled, ztunnelUnknown, dataPlaneForbiddenNamespaces, loading } =
+    useMeshStatus();
   const [namespaces] = K8s.ResourceClasses.Namespace.useList();
   const [services] = K8s.ResourceClasses.Service.useList();
   const [policies] = AuthorizationPolicy.useList();
@@ -73,6 +74,20 @@ export function WaypointsPage() {
     });
     return map;
   }, [policies]);
+
+  if (loading || ztunnelUnknown) {
+    return (
+      <SectionBox title="Waypoints">
+        <Alert severity="info">
+          {loading
+            ? 'Checking whether ambient mode is installed…'
+            : `Cannot determine whether ambient mode is installed. DaemonSet access was denied in ${
+                dataPlaneForbiddenNamespaces.join(', ') || 'one or more namespaces'
+              }.`}
+        </Alert>
+      </SectionBox>
+    );
+  }
 
   if (!ambientEnabled) {
     return (

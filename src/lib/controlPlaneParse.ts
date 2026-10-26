@@ -39,3 +39,25 @@ export function controlPlaneNamespace(istiods: { metadata: { namespace?: string 
 export function dataPlaneNamespaces(namespace: string): string[] {
   return [...new Set([namespace, ISTIO_SYSTEM_NAMESPACE, KUBE_SYSTEM_NAMESPACE])];
 }
+
+/** Namespaces where DaemonSet listing failed with Forbidden. */
+export function forbiddenDataPlaneNamespaces(
+  errors: ({ status?: number; namespace?: string } | null | undefined)[] | null | undefined
+): string[] {
+  return [
+    ...new Set(
+      (errors ?? [])
+        .filter(error => error?.status === 403)
+        .map(error => error?.namespace)
+        .filter((namespace): namespace is string => Boolean(namespace))
+    ),
+  ];
+}
+
+/** A missing DaemonSet is unknown if listing failed in any namespace. */
+export function dataPlaneResourceUnknown(
+  errors: ({ status?: number } | null | undefined)[] | null | undefined,
+  resourceFound: boolean
+): boolean {
+  return !resourceFound && (errors ?? []).some(error => error?.status === 403);
+}
