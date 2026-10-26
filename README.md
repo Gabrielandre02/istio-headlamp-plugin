@@ -24,7 +24,7 @@ waypoint and fails closed, denying the traffic it was meant to filter.
 
 ### Download the GitHub release package
 
-Download `istio-headlamp-plugin-<version>.tar.gz` from the
+Download `eottabom-istio-headlamp-plugin-<version>.tar.gz` from the
 [latest GitHub release](https://github.com/eottabom/istio-headlamp-plugin/releases/latest).
 Use the plugin `.tar.gz` asset under **Assets**, not GitHub's **Source code** archives.
 The package contains the built plugin; Node.js and npm are not needed to install it.
@@ -36,7 +36,7 @@ Download and extract the package into the desktop app's plugin directory:
 ```sh
 VERSION="$(curl -fsSL https://api.github.com/repos/eottabom/istio-headlamp-plugin/releases/latest \
   | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"
-ARCHIVE="istio-headlamp-plugin-${VERSION}.tar.gz"
+ARCHIVE="eottabom-istio-headlamp-plugin-${VERSION}.tar.gz"
 curl -fL --output "$ARCHIVE" \
   "https://github.com/eottabom/istio-headlamp-plugin/releases/download/v${VERSION}/${ARCHIVE}"
 mkdir -p "$HOME/.config/Headlamp/plugins"
@@ -128,7 +128,7 @@ npm run build
 npm run package
 ```
 
-Install the resulting `istio-headlamp-plugin-<version>.tar.gz` using the extraction
+Install the resulting `eottabom-istio-headlamp-plugin-<version>.tar.gz` using the extraction
 steps above. When copying a build manually, copy the **contents** of `dist/` and
 `package.json` into `plugins/istio-headlamp-plugin/`; `main.js` must be directly inside
 that directory, not inside a nested `dist/` directory. `dev/deploy.sh` copies this

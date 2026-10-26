@@ -77,7 +77,11 @@ jobs:
           fi
           npm run build
           npm run package >/dev/null
-          tarball="istio-headlamp-plugin-${VERSION}.tar.gz"
+          # npm pack drops the @ and turns the / into a -, so a scoped name
+          # such as @eottabom/istio-headlamp-plugin packs as
+          # eottabom-istio-headlamp-plugin-<version>.tar.gz.
+          name="$(node -p "require('./package.json').name.replace('@','').replace('/','-')")"
+          tarball="${name}-${VERSION}.tar.gz"
           test -f "$tarball" || { echo "expected $tarball, got:"; ls -1 ./*.tar.gz; exit 1; }
           echo "tarball=$tarball" >>"$GITHUB_OUTPUT"
           echo "checksum=$(sha256sum "$tarball" | cut -d' ' -f1)" >>"$GITHUB_OUTPUT"
@@ -137,7 +141,9 @@ jobs:
             "$MANIFEST"
 
           # Keep the clickable release asset link in both install guides current.
-          sed -i -E "s@releases/download/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?/istio-headlamp-plugin-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.tar\.gz@releases/download/v${VERSION}/istio-headlamp-plugin-${VERSION}.tar.gz@g; s@\[(\`?)istio-headlamp-plugin-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.tar\.gz(\`?)\]@[\1istio-headlamp-plugin-${VERSION}.tar.gz\3]@g" \
+          # Earlier manifests name the archive as it was packed then, which the
+          # scoped package name changed, so match any archive name here.
+          sed -i -E "s@releases/download/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?/[A-Za-z0-9._-]+\.tar\.gz@releases/download/v${VERSION}/${TARBALL}@g; s@\[(\`?)[A-Za-z0-9._-]*istio-headlamp-plugin-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.tar\.gz(\`?)\]@[\1${TARBALL}\3]@g" \
             "$MANIFEST"
 
           sed -i -E "s@(ghcr.io/${GITHUB_REPOSITORY}:)[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?@\1${VERSION}@g" \
