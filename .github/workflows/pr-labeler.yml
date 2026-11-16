@@ -28,16 +28,16 @@ jobs:
       - name: Issue eottabom-bot token
         id: bot
         timeout-minutes: 3
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          client-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }},engineering-log
 
       - name: Checkout bot scripts
         timeout-minutes: 3
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ github.repository_owner }}/engineering-log
           token: ${{ steps.bot.outputs.token }}
