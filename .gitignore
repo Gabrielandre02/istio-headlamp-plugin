@@ -11,3 +11,4 @@ storybook-static/
 plugins/
 test-results/
 playwright-report/
+.dev/

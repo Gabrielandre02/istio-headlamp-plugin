@@ -1,0 +1,32 @@
+# Headlamp with the plugin loaded. Driven by dev/dev.sh, which builds the plugin
+# and writes $DEV_DIR (plugins/ and kube/) before starting this.
+name: ${COMPOSE_PROJECT_NAME:-istio-headlamp-dev}
+
+services:
+  headlamp:
+    image: ${HEADLAMP_IMAGE:-ghcr.io/headlamp-k8s/headlamp:latest}
+    command: ["-plugins-dir=/headlamp/plugins"]
+    ports: ["${PORT:-4466}:4466"]
+    volumes:
+      - ${DEV_DIR}/plugins:/headlamp/plugins
+      - ${DEV_DIR}/kube:/kube
+    environment:
+      KUBECONFIG: /kube/config
+    networks: [kind]
+
+  # Same Headlamp served under a sub-path, to catch base-URL-only bugs.
+  headlamp-base:
+    profiles: [base]
+    image: ${HEADLAMP_IMAGE:-ghcr.io/headlamp-k8s/headlamp:latest}
+    command: ["-plugins-dir=/headlamp/plugins", "-base-url=/headlamp"]
+    ports: ["${BASE_PORT:-4467}:4466"]
+    volumes:
+      - ${DEV_DIR}/plugins:/headlamp/plugins
+      - ${DEV_DIR}/kube:/kube
+    environment:
+      KUBECONFIG: /kube/config
+    networks: [kind]
+
+networks:
+  kind:
+    external: true
