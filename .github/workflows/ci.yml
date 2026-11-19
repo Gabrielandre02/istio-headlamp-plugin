@@ -43,5 +43,17 @@ jobs:
       - name: Test
         run: npm test
 
+      # Informational only: no threshold, so a PR never fails on the number.
+      - name: Coverage
+        run: |
+          npm run coverage | tee "$RUNNER_TEMP/coverage.txt"
+          { echo '### Unit-test coverage'; echo '```'; sed -n '/Coverage summary/,$p' "$RUNNER_TEMP/coverage.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: coverage
+          path: coverage/lcov-report
+          if-no-files-found: ignore
+
       - name: Build
         run: npm run build
