@@ -12,3 +12,4 @@ plugins/
 test-results/
 playwright-report/
 .dev/
+.dev-e2e/

@@ -132,7 +132,7 @@ npm run package
 Install the resulting `eottabom-istio-headlamp-plugin-<version>.tar.gz` using the extraction
 steps above. When copying a build manually, copy the **contents** of `dist/` and
 `package.json` into `plugins/istio-headlamp-plugin/`; `main.js` must be directly inside
-that directory, not inside a nested `dist/` directory. `dev/deploy.sh` copies this
+that directory, not inside a nested `dist/` directory. `dev/dev.sh desktop` copies this
 layout to the Linux/macOS desktop directory and any additional paths you pass to it.
 
 ### What it needs to read
@@ -271,14 +271,18 @@ python3 scripts/capture-fixtures.py --context kind-istio-dev   # refresh fixture
 
 `e2e/` holds Playwright tests that load the built plugin into a real Headlamp and check the
 pages against the sample mesh: the Istio pages, the L7 enforcement warning, and the sections
-added to Headlamp's own Service and Namespace pages. `dev/e2e.sh` starts Headlamp in Docker
+added to Headlamp's own Service and Namespace pages. `dev/dev.sh e2e` starts Headlamp in Docker
 on the local dev cluster and runs them; the **E2E** workflow does the same on every push to
 `main`.
 
 ```sh
-./dev/kind-istio-ambient.sh   # once
-./dev/e2e.sh                  # extra args go to `playwright test`
+./dev/dev.sh cluster   # once: kind + Istio ambient + samples
+./dev/dev.sh serve     # build and leave Headlamp running on :4466 (PROFILE=base adds /headlamp on :4467)
+./dev/dev.sh e2e       # own container on :4476; extra args go to `playwright test`
+./dev/dev.sh down      # stop the containers
 ```
+
+`dev/e2e.sh` and `dev/deploy.sh` still work and call `dev.sh`.
 
 ## Layout
 
