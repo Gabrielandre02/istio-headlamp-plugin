@@ -13,7 +13,7 @@
     "storybook": "headlamp-plugin storybook",
     "storybook-build": "headlamp-plugin storybook-build",
     "test": "headlamp-plugin test",
-    "coverage": "UNDER_TEST=true vitest run -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs --coverage.enabled --coverage.provider=istanbul --coverage.include='src/**/*.{ts,tsx}' --coverage.exclude='src/**/*.stories.tsx' --coverage.exclude='src/**/__tests__/**' --coverage.reporter=text-summary --coverage.reporter=lcov --coverage.reporter=json-summary",
+    "coverage": "UNDER_TEST=true vitest run -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs --coverage.enabled --coverage.provider=istanbul --coverage.include='src/**/*.{ts,tsx}' --coverage.exclude='src/**/*.stories.tsx' --coverage.exclude='src/**/__tests__/**' --coverage.exclude='src/**/*.test.{ts,tsx}' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text-summary --coverage.reporter=lcov --coverage.reporter=json-summary",
     "i18n": "headlamp-plugin i18n"
   },
   "keywords": [
@@ -40,7 +40,8 @@
   },
   "devDependencies": {
     "@kinvolk/headlamp-plugin": "^0.14.0",
-    "@types/js-yaml": "^4.0.9"
+    "@types/js-yaml": "^4.0.9",
+    "@vitest/coverage-istanbul": "^3.2.4"
   },
   "author": "eottabom <snoopy12oyk@gmail.com>",
   "license": "Apache-2.0",
