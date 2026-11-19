@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { hostMatchesService, parseHost, serviceFqdn } from '../lib/host';
-import { istioInfraRole, namespaceMeshState, podMeshState, resolveWaypoint } from '../lib/mesh';
+import {
+  istioInfraRole,
+  namespaceMeshState,
+  podMeshState,
+  proxyContainer,
+  resolveWaypoint,
+} from '../lib/mesh';
 import { namespaces, pods, services, waypoints } from './fixtures';
 
 const ns = (name: string) => namespaces.find(n => n.metadata.name === name);
@@ -96,6 +102,36 @@ describe('podMeshState', () => {
     expect(podMeshState(fake, asObj(ns('legacy'))).mode).toBe('sidecar');
   });
 
+  it('reports sidecar when istio-proxy runs as a native sidecar init container', () => {
+    const fake = asObj({
+      metadata: { name: 'p', namespace: 'legacy' },
+      spec: {
+        initContainers: [{ name: 'istio-init' }, { name: 'istio-proxy', restartPolicy: 'Always' }],
+        containers: [{ name: 'app' }],
+      },
+    });
+    expect(podMeshState(fake, asObj(ns('legacy'))).mode).toBe('sidecar');
+  });
+
+  it('does not treat a non-restartable istio-proxy init container as a sidecar', () => {
+    const fake = asObj({
+      metadata: { name: 'p', namespace: 'legacy' },
+      spec: { initContainers: [{ name: 'istio-proxy' }], containers: [{ name: 'app' }] },
+    });
+    expect(podMeshState(fake, asObj(ns('legacy'))).mode).toBe('out-of-mesh');
+  });
+
+  it('finds the proxy container of a native sidecar, so its image can be shown', () => {
+    const fake = asObj({
+      metadata: { name: 'p', namespace: 'legacy' },
+      spec: {
+        initContainers: [{ name: 'istio-proxy', image: 'proxyv2:1.30.1', restartPolicy: 'Always' }],
+        containers: [{ name: 'app' }],
+      },
+    });
+    expect(proxyContainer(fake)?.image).toBe('proxyv2:1.30.1');
+  });
+
   it('flags a pod in an injection-enabled namespace that has no sidecar', () => {
     const fake = asObj({
       metadata: { name: 'p', namespace: 'legacy' },
@@ -104,6 +140,17 @@ describe('podMeshState', () => {
     const state = podMeshState(fake, asObj(ns('legacy')));
     expect(state.mode).toBe('out-of-mesh');
     expect(state.reason).toContain('restart');
+  });
+
+  it('does not ask for a restart of a host-network pod, which the injector skips', () => {
+    const fake = asObj({
+      metadata: { name: 'p', namespace: 'legacy' },
+      spec: { hostNetwork: true, containers: [{ name: 'app' }] },
+    });
+    const state = podMeshState(fake, asObj(ns('legacy')));
+    expect(state.mode).toBe('out-of-mesh');
+    expect(state.reason).toContain('host-network');
+    expect(state.reason).not.toContain('restart');
   });
 
   it('honours a pod-level opt-out of ambient', () => {

@@ -79,6 +79,21 @@ export function namespaceMeshState(ns: KubeObject | undefined | null): MeshState
 }
 
 /**
+ * The injected `istio-proxy` container of a pod. Native sidecar mode
+ * (ENABLE_NATIVE_SIDECARS) injects it as a restartable init container instead
+ * of a regular container.
+ */
+export function proxyContainer(pod: KubeObject): { name?: string; image?: string } | undefined {
+  const spec = (pod.jsonData as any)?.spec ?? {};
+  return (
+    (spec.containers ?? []).find((c: any) => c.name === PROXY_CONTAINER) ??
+    (spec.initContainers ?? []).find(
+      (c: any) => c.name === PROXY_CONTAINER && c.restartPolicy === 'Always'
+    )
+  );
+}
+
+/**
  * Mesh state of a pod. The pod's own spec is authoritative: an injected
  * `istio-proxy` container means sidecar regardless of namespace labels.
  */
@@ -93,8 +108,7 @@ export function podMeshState(
     return { mode: 'infra', reason: `${infra}, part of the Istio data plane` };
   }
 
-  const containers: Array<{ name?: string }> = (pod.jsonData as any)?.spec?.containers ?? [];
-  const hasProxy = containers.some(c => c.name === PROXY_CONTAINER);
+  const hasProxy = !!proxyContainer(pod);
   const labels = labelsOf(pod) ?? {};
   const annotations = annotationsOf(pod) ?? {};
 
@@ -128,6 +142,10 @@ export function podMeshState(
         mode: 'out-of-mesh',
         reason: `injection disabled on the pod (${SIDECAR_INJECT_ANNOTATION}=false)`,
       };
+    }
+    // Restarting would not help: the injector never touches these.
+    if ((pod.jsonData as any)?.spec?.hostNetwork) {
+      return { mode: 'out-of-mesh', reason: 'the injector skips host-network pods' };
     }
     // Namespace says inject, but this pod has no proxy -- it predates the
     // label or was never restarted. Worth flagging rather than claiming mesh.
