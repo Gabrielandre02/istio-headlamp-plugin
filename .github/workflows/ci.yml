@@ -40,12 +40,9 @@ jobs:
       - name: Type check
         run: npm run tsc
 
+      # Runs the unit tests once, with coverage. No threshold: only a failing
+      # test fails the step, never the percentage.
       - name: Test
-        run: npm test
-
-      # Informational only: no threshold, and a failure here does not fail the job.
-      - name: Coverage
-        continue-on-error: true
         run: |
           npm run coverage | tee "$RUNNER_TEMP/coverage.txt"
           { echo '### Unit-test coverage'; echo '```'; sed -n '/Coverage summary/,$p' "$RUNNER_TEMP/coverage.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
