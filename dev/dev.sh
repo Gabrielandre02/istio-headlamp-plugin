@@ -22,8 +22,8 @@ else
   export PORT="${PORT:-4466}" DEV_DIR="$PWD/.dev"
 fi
 # Always include the base profile on teardown so no container is orphaned.
-COMPOSE=(docker compose -f dev/compose.yaml --profile base)
-UP=(docker compose -f dev/compose.yaml ${PROFILE:+--profile "$PROFILE"})
+COMPOSE=(docker compose -f "$PWD/dev/compose.yaml" --profile base)
+UP=(docker compose -f "$PWD/dev/compose.yaml" ${PROFILE:+--profile "$PROFILE"})
 
 # Headlamp needs package.json next to main.js or it disables the plugin, and a
 # read-only dist/ mount cannot take one, so collect the files into one folder.
