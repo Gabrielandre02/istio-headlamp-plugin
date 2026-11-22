@@ -11,3 +11,5 @@ storybook-static/
 plugins/
 test-results/
 playwright-report/
+.dev/
+.dev-e2e/
