@@ -43,6 +43,7 @@ jobs:
       # Runs the unit tests once, with coverage. No threshold: only a failing
       # test fails the step, never the percentage.
       - name: Test
+        shell: bash
         run: |
           npm run coverage | tee "$RUNNER_TEMP/coverage.txt"
           { echo '### Unit-test coverage'; echo '```'; sed -n '/Coverage summary/,$p' "$RUNNER_TEMP/coverage.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
