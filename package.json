@@ -13,7 +13,7 @@
     "storybook": "headlamp-plugin storybook",
     "storybook-build": "headlamp-plugin storybook-build",
     "test": "headlamp-plugin test",
-    "coverage": "UNDER_TEST=true vitest run -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs --coverage.enabled --coverage.provider=istanbul --coverage.include='src/**/*.{ts,tsx}' --coverage.exclude='src/**/*.stories.tsx' --coverage.exclude='src/**/__tests__/**' --coverage.exclude='src/**/*.test.{ts,tsx}' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text-summary --coverage.reporter=lcov --coverage.reporter=json-summary",
+    "coverage": "UNDER_TEST=true vitest run -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs --coverage.enabled --coverage.provider=istanbul --coverage.include='src/**/*.{ts,tsx}' --coverage.exclude='src/**/*.stories.tsx' --coverage.exclude='src/**/__tests__/**' --coverage.exclude='src/**/*.test.{ts,tsx}' --coverage.exclude='src/**/*.d.ts' --coverage.exclude='src/stories/**' --coverage.reporter=text-summary --coverage.reporter=lcov --coverage.reporter=json-summary",
     "i18n": "headlamp-plugin i18n"
   },
   "keywords": [

@@ -2,6 +2,7 @@
 
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/istio-headlamp-plugin)](https://artifacthub.io/packages/search?repo=istio-headlamp-plugin)
 [![CI](https://github.com/eottabom/istio-headlamp-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/eottabom/istio-headlamp-plugin/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://eottabom.github.io/istio-headlamp-plugin/coverage/badge.json)](https://eottabom.github.io/istio-headlamp-plugin/coverage/)
 
 An Istio service mesh plugin for [Headlamp](https://headlamp.dev), built around two things
 existing Istio UIs in Headlamp do not do:
@@ -9,7 +10,7 @@ existing Istio UIs in Headlamp do not do:
 **1. Every resource shows its spec, without opening the editor.**
 Istio custom resources are almost entirely `spec`. A detail view that renders only metadata
 and conditions tells you nothing about a `DestinationRule` or `ServiceEntry`, so you end up
-clicking *Edit* just to read the configuration. Here, typed sections render the parts we
+clicking _Edit_ just to read the configuration. Here, typed sections render the parts we
 model, and a generic recursive renderer covers everything else, including fields added by
 Istio releases newer than this plugin.
 
@@ -74,8 +75,8 @@ spec:
       initContainers:
         - name: install-istio-plugin
           image: ghcr.io/eottabom/istio-headlamp-plugin:latest # or a pinned version
-          command: ["/bin/sh", "-c"]
-          args: ["cp -R /plugins/. /headlamp/plugins/"]
+          command: ['/bin/sh', '-c']
+          args: ['cp -R /plugins/. /headlamp/plugins/']
           volumeMounts:
             - name: headlamp-plugins
               mountPath: /headlamp/plugins
@@ -156,18 +157,18 @@ actually has.
 
 ### Spec-first detail views
 
-| Resource | What the detail page shows |
-|---|---|
-| `DestinationRule` | Load balancing, connection pool (TCP + HTTP), outlier detection, upstream TLS, subsets with per-subset overrides, port-level settings |
-| `ServiceEntry` | Hosts, location, resolution, ports, endpoints table, and a warning when the combination silently does nothing (e.g. `STATIC` with no endpoints) |
-| `VirtualService` | Per-route match summary, weighted destinations with a total-weight check, timeouts/retries/fault/mirror |
-| `Gateway` (Istio API) | Servers table with port, protocol, hosts, TLS mode and credential |
-| `AuthorizationPolicy` | Action, rules as from/to/when, and the ambient L7 enforcement check |
-| `PeerAuthentication` | mTLS mode, port-level overrides, warnings for `PERMISSIVE` and `DISABLE` |
-| `RequestAuthentication` | JWT rules with issuer, audiences, JWKS source and token location |
-| `Telemetry` | Tracing, metrics and access logging, with sampling percentage |
-| `WasmPlugin` | URL, phase, priority and plugin config |
-| `Sidecar`, `WorkloadEntry`, `WorkloadGroup`, `ProxyConfig`, `EnvoyFilter`, `TrafficExtension` | Typed header fields plus the full spec renderer |
+| Resource                                                                                      | What the detail page shows                                                                                                                      |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DestinationRule`                                                                             | Load balancing, connection pool (TCP + HTTP), outlier detection, upstream TLS, subsets with per-subset overrides, port-level settings           |
+| `ServiceEntry`                                                                                | Hosts, location, resolution, ports, endpoints table, and a warning when the combination silently does nothing (e.g. `STATIC` with no endpoints) |
+| `VirtualService`                                                                              | Per-route match summary, weighted destinations with a total-weight check, timeouts/retries/fault/mirror                                         |
+| `Gateway` (Istio API)                                                                         | Servers table with port, protocol, hosts, TLS mode and credential                                                                               |
+| `AuthorizationPolicy`                                                                         | Action, rules as from/to/when, and the ambient L7 enforcement check                                                                             |
+| `PeerAuthentication`                                                                          | mTLS mode, port-level overrides, warnings for `PERMISSIVE` and `DISABLE`                                                                        |
+| `RequestAuthentication`                                                                       | JWT rules with issuer, audiences, JWKS source and token location                                                                                |
+| `Telemetry`                                                                                   | Tracing, metrics and access logging, with sampling percentage                                                                                   |
+| `WasmPlugin`                                                                                  | URL, phase, priority and plugin config                                                                                                          |
+| `Sidecar`, `WorkloadEntry`, `WorkloadGroup`, `ProxyConfig`, `EnvoyFilter`, `TrafficExtension` | Typed header fields plus the full spec renderer                                                                                                 |
 
 ![DestinationRule detail](docs/images/destinationrule.png)
 
@@ -188,6 +189,7 @@ Every page ends with a **Full spec** section, so nothing in the resource is ever
 - **L7 enforcement check**: an `AuthorizationPolicy` using HTTP methods, paths, hosts or
   JWT claims is checked against what actually enforces it. Two Istio rules decide this, and
   both are easy to get wrong by hand:
+
   - only a `targetRef` attaches a policy to a waypoint. A `selector`, or neither, leaves the
     policy with ztunnel however the namespace is labelled.
   - ztunnel cannot evaluate L7, and does not skip what it cannot evaluate: a policy that
@@ -203,6 +205,7 @@ Every page ends with a **Full spec** section, so nothing in the resource is ever
   For example, a `DENY` policy with HTTP conditions, attached by `targetRef` to a Service that opted
   out of its waypoint. The targetRef has no waypoint to land on, so nothing enforces the policy
   and its conditions go unchecked.
+
 - **Mesh column**: Headlamp's own Pod and workload lists gain an `Ambient` / `Sidecar` /
   `Out of mesh` column.
 
@@ -217,7 +220,7 @@ Istio sections are injected into Headlamp's own resource views:
 - **Service** → VirtualServices routing to it, DestinationRules for its host, ServiceEntries
   claiming that host, AuthorizationPolicies, and its waypoint.
 - **Pod** → mesh state with the reason, proxy image, waypoint.
-- **Namespace** → dataplane mode, default waypoint, and the *effective* mTLS mode resolved
+- **Namespace** → dataplane mode, default waypoint, and the _effective_ mTLS mode resolved
   from namespace and mesh-wide `PeerAuthentication`.
 
 The **Istio** section on the `reviews` Service links its routing resources,
@@ -257,7 +260,7 @@ targeting a Service that opted out of its waypoint) so the warnings have somethi
 
 ### Tests
 
-The analysis that decides what the UI *claims* about a resource lives in
+The analysis that decides what the UI _claims_ about a resource lives in
 `src/lib/analyze.ts` and `src/lib/mesh.ts` as pure functions, with no Headlamp or React
 imports: which enforcement layer a policy needs, whether a ServiceEntry silently routes
 nothing, how a host string resolves. Tests run those against fixtures captured from a real
@@ -316,7 +319,7 @@ and `linux/arm64`. Container tags use the exact version (for example, `1.2.3`), 
 the newest stable release is also tagged `latest`.
 
 The changelog is built from commit subjects since the previous tag: `feat:` becomes
-*added*, `fix:` *fixed* and `security:` *security*, in both the GitHub release notes and the
+_added_, `fix:` _fixed_ and `security:` _security_, in both the GitHub release notes and the
 `changes` list Artifact Hub shows in the catalogue. Write those subjects for users.
 
 If image publication fails after the release succeeds, rerun **Publish GitHub Package**
