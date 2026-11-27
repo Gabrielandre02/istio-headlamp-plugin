@@ -23,6 +23,8 @@ export interface MeshState {
   reason: string;
   /** Istio revision, when the namespace or workload pins one. */
   revision?: string;
+  /** `2/3` when only some of a workload's pods are in this mode. */
+  share?: string;
 }
 
 type Labels = Record<string, string> | undefined;
@@ -247,4 +249,68 @@ export function matchLabels(
   if (!selector || Object.keys(selector).length === 0) return true;
   if (!labels) return false;
   return Object.entries(selector).every(([k, v]) => labels[k] === v);
+}
+
+/**
+ * The Namespace object `obj` lives in. In a multi-cluster view the namespace
+ * list holds every selected cluster, so the cluster has to match too.
+ */
+export function namespaceOf(
+  obj: KubeObject,
+  namespaces: KubeObject[] | null | undefined
+): KubeObject | null {
+  return (
+    (namespaces ?? []).find(
+      n => n.cluster === obj.cluster && n.metadata.name === obj.metadata.namespace
+    ) ?? null
+  );
+}
+
+/**
+ * The live pods a workload runs: same namespace, labels matching
+ * `spec.selector`. Evicted and completed pods are left out, they are in no
+ * mesh any more and would skew the count.
+ */
+export function workloadPods(workload: KubeObject, pods: KubeObject[]): KubeObject[] {
+  // shortcut: matchExpressions are ignored, upgrade if a workload needs them to tell its pods apart
+  const selector = (workload.jsonData as any)?.spec?.selector?.matchLabels;
+  // An empty selector would match every pod; a CronJob has none at all.
+  if (!selector || Object.keys(selector).length === 0) return [];
+  return pods.filter(pod => {
+    const phase = (pod.jsonData as any)?.status?.phase;
+    return (
+      // In a multi-cluster view the pod list holds every selected cluster.
+      pod.cluster === workload.cluster &&
+      pod.metadata.namespace === workload.metadata.namespace &&
+      phase !== 'Succeeded' &&
+      phase !== 'Failed' &&
+      matchLabels(selector, labelsOf(pod))
+    );
+  });
+}
+
+// When a workload's pods disagree, name the mesh mode some of them are in.
+const MODE_ORDER: MeshMode[] = ['sidecar', 'ambient', 'infra', 'out-of-mesh', 'unknown'];
+
+/**
+ * Mesh state of a workload, read from its pods rather than its pod template:
+ * the proxy is injected when a pod is admitted, so a template never has it.
+ * Undefined when the workload has no pods.
+ */
+export function workloadMeshState(
+  pods: KubeObject[],
+  namespace?: KubeObject | null
+): MeshState | undefined {
+  const states = pods.map(pod => podMeshState(pod, namespace));
+  const mode = MODE_ORDER.find(m => states.some(s => s.mode === m));
+  if (!mode) return undefined;
+
+  const inMode = states.filter(s => s.mode === mode);
+  const others = states.filter(s => s.mode !== mode);
+  if (others.length === 0) return inMode[0];
+  return {
+    ...inMode[0],
+    share: `${inMode.length}/${states.length}`,
+    reason: `${others.length} of ${states.length} pods differ, for example: ${others[0].reason}`,
+  };
 }

@@ -3,9 +3,12 @@ import { hostMatchesService, parseHost, serviceFqdn } from '../lib/host';
 import {
   istioInfraRole,
   namespaceMeshState,
+  namespaceOf,
   podMeshState,
   proxyContainer,
   resolveWaypoint,
+  workloadMeshState,
+  workloadPods,
 } from '../lib/mesh';
 import { namespaces, pods, services, waypoints } from './fixtures';
 
@@ -267,5 +270,99 @@ describe('hostMatchesService', () => {
 
   it('builds the canonical FQDN', () => {
     expect(serviceFqdn('reviews', 'shop')).toBe('reviews.shop.svc.cluster.local');
+  });
+});
+
+describe('namespaceOf', () => {
+  const nsIn = (cluster: string, name: string) => ({ cluster, metadata: { name } } as any);
+  const podIn = (cluster: string, namespace: string) =>
+    ({ cluster, metadata: { name: 'p', namespace } } as any);
+
+  it('takes the namespace of the same cluster, in a multi-cluster view', () => {
+    const a = nsIn('a', 'shop');
+    const b = nsIn('b', 'shop');
+    expect(namespaceOf(podIn('b', 'shop'), [a, b])).toBe(b);
+  });
+
+  it('is null when the namespace is not listed yet', () => {
+    expect(namespaceOf(podIn('a', 'shop'), null)).toBeNull();
+    expect(namespaceOf(podIn('a', 'shop'), [nsIn('a', 'other')])).toBeNull();
+  });
+});
+
+describe('workloadPods', () => {
+  const workload = (selector: any, namespace = 'legacy') =>
+    asObj({ metadata: { name: 'w', namespace }, spec: { selector } });
+  const labelled = (namespace: string, labels: Record<string, string>) =>
+    asObj({ metadata: { name: 'p', namespace, labels }, spec: {} });
+
+  it('takes the pods its selector matches, in its own namespace only', () => {
+    const mine = labelled('legacy', { app: 'web', extra: 'x' });
+    const otherApp = labelled('legacy', { app: 'api' });
+    const otherNamespace = labelled('shop', { app: 'web' });
+    expect(
+      workloadPods(workload({ matchLabels: { app: 'web' } }), [mine, otherApp, otherNamespace])
+    ).toEqual([mine]);
+  });
+
+  it('takes the pods of its own cluster only, in a multi-cluster view', () => {
+    const inCluster = (cluster: string, obj: any) => ({ ...obj, cluster });
+    const mine = inCluster('a', labelled('legacy', { app: 'web' }));
+    const twin = inCluster('b', labelled('legacy', { app: 'web' }));
+    const w = inCluster('a', workload({ matchLabels: { app: 'web' } }));
+    expect(workloadPods(w, [mine, twin])).toEqual([mine]);
+  });
+
+  it('leaves out evicted and completed pods', () => {
+    const live = labelled('legacy', { app: 'web' });
+    const evicted = asObj({
+      metadata: { name: 'gone', namespace: 'legacy', labels: { app: 'web' } },
+      spec: {},
+      status: { phase: 'Failed' },
+    });
+    expect(workloadPods(workload({ matchLabels: { app: 'web' } }), [live, evicted])).toEqual([
+      live,
+    ]);
+  });
+
+  it('does not claim every pod when the workload has no selector', () => {
+    const any = labelled('legacy', { app: 'web' });
+    expect(workloadPods(workload(undefined), [any])).toEqual([]);
+    expect(workloadPods(workload({ matchLabels: {} }), [any])).toEqual([]);
+  });
+});
+
+describe('workloadMeshState', () => {
+  const injected = asObj({
+    metadata: { name: 'new', namespace: 'legacy' },
+    spec: { containers: [{ name: 'app' }, { name: 'istio-proxy' }] },
+  });
+  const stale = asObj({
+    metadata: { name: 'old', namespace: 'legacy' },
+    spec: { containers: [{ name: 'app' }] },
+  });
+
+  it('reports sidecar when every pod has the proxy', () => {
+    const state = workloadMeshState([injected, injected], asObj(ns('legacy')));
+    expect(state?.mode).toBe('sidecar');
+    expect(state?.share).toBeUndefined();
+  });
+
+  // The namespace got istio-injection=enabled after one pod had started.
+  it('counts the pods that still have no sidecar instead of claiming sidecar', () => {
+    const state = workloadMeshState([injected, stale, injected], asObj(ns('legacy')));
+    expect(state?.mode).toBe('sidecar');
+    expect(state?.share).toBe('2/3');
+    expect(state?.reason).toContain('1 of 3 pods');
+    expect(state?.reason).toContain('restart');
+  });
+
+  it('agrees with the pod list when no pod was injected', () => {
+    const state = workloadMeshState([stale], asObj(ns('legacy')));
+    expect(state).toEqual(podMeshState(stale, asObj(ns('legacy'))));
+  });
+
+  it('has nothing to say about a workload without pods', () => {
+    expect(workloadMeshState([], asObj(ns('legacy')))).toBeUndefined();
   });
 });
