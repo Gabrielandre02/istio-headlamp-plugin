@@ -40,8 +40,55 @@ jobs:
       - name: Type check
         run: npm run tsc
 
+      # Runs the unit tests once, with coverage. No threshold: only a failing
+      # test fails the step, never the percentage.
       - name: Test
-        run: npm test
+        shell: bash
+        run: |
+          npm run coverage | tee "$RUNNER_TEMP/coverage.txt"
+          { echo '### Unit-test coverage'; echo '```'; sed -n '/Coverage summary/,$p' "$RUNNER_TEMP/coverage.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: coverage/lcov-report
+          if-no-files-found: ignore
+
+      # main only: stage the HTML report and a shields.io endpoint for Pages.
+      # The README badge reads badge.json, so it always shows the latest main run.
+      - name: Prepare coverage site
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p _site/coverage
+          cp -R coverage/lcov-report/. _site/coverage/
+          node -e '
+          const t = require("./coverage/coverage-summary.json").total.lines.pct;
+          require("fs").writeFileSync("_site/coverage/badge.json",
+            JSON.stringify({ schemaVersion: 1, label: "coverage", message: `${t}%`, color: "blue" }));
+          '
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: _site
 
       - name: Build
         run: npm run build
+
+  # Older main runs are cancelled by the workflow-level concurrency group, so a
+  # stale run cannot overwrite a newer report.
+  coverage-pages:
+    name: publish coverage
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}coverage/
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

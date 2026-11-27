@@ -9,7 +9,7 @@ name: 🏷️ PR Labeler
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, closed]
 
 # A new push cancels the run in flight, so only the latest state is labeled.
 concurrency:
