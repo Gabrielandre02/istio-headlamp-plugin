@@ -7,8 +7,9 @@
 #   dev.sh desktop   copy the build into the desktop app (and any folders given)
 #   dev.sh down      stop the containers
 #
-# Env: CLUSTER (istio-dev), PORT (4466; e2e uses 4476), BASE_PORT (4467),
-#      HEADLAMP_IMAGE, PROFILE=base to also start Headlamp under /headlamp.
+# Env: CLUSTER (istio-dev), PORT (4466; e2e uses 4476), BASE_PORT (4467; e2e
+#      uses 4477), HEADLAMP_IMAGE, PROFILE=base to also start Headlamp under
+#      /headlamp. e2e always starts both and runs the tests against each.
 # e2e runs in its own compose project and folder, so it never touches a
 # Headlamp left running by `serve`.
 set -euo pipefail
@@ -17,7 +18,8 @@ cd "$(dirname "$0")/.."
 export CLUSTER="${CLUSTER:-istio-dev}"
 
 if [ "${1:-}" = e2e ]; then
-  export PORT="${PORT:-4476}" DEV_DIR="$PWD/.dev-e2e" COMPOSE_PROJECT_NAME=istio-headlamp-e2e
+  export PORT="${PORT:-4476}" BASE_PORT="${BASE_PORT:-4477}" PROFILE=base \
+    DEV_DIR="$PWD/.dev-e2e" COMPOSE_PROJECT_NAME=istio-headlamp-e2e
 else
   export PORT="${PORT:-4466}" DEV_DIR="$PWD/.dev"
 fi
@@ -49,16 +51,25 @@ prepare() {
   chmod -R a+rX "$DEV_DIR"
 }
 
+wait_for() {
+  for _ in $(seq 1 60); do
+    curl -fs "$1/config" >/dev/null && return
+    sleep 1
+  done
+  echo "Headlamp did not answer at $1" >&2
+  "${UP[@]}" logs --tail 20 >&2
+  exit 1
+}
+
 serve() {
   prepare
   "${UP[@]}" up -d
-  for _ in $(seq 1 60); do
-    curl -fs "http://localhost:${PORT}/config" >/dev/null && break
-    sleep 1
-  done
-  curl -fs "http://localhost:${PORT}/config" >/dev/null ||
-    { echo "Headlamp did not answer on port ${PORT}" >&2; "${UP[@]}" logs --tail 20 >&2; exit 1; }
+  wait_for "http://localhost:${PORT}"
   echo "Headlamp: http://localhost:${PORT}  (rebuild with 'serve' again, then reload the page)"
+  if [ "${PROFILE:-}" = base ]; then
+    wait_for "http://localhost:${BASE_PORT:-4467}/headlamp"
+    echo "Headlamp under a base URL: http://localhost:${BASE_PORT:-4467}/headlamp/"
+  fi
 }
 
 case "${1:-}" in
@@ -73,12 +84,21 @@ case "${1:-}" in
     cd e2e
     [ -d node_modules ] || npm ci
     npx playwright install chromium >/dev/null
-    HEADLAMP_URL="http://localhost:${PORT}" HEADLAMP_CLUSTER="kind-${CLUSTER}" npx playwright test "$@"
+    HEADLAMP_URL="http://localhost:${PORT}/" \
+      HEADLAMP_BASE_URL="http://localhost:${BASE_PORT}/headlamp/" \
+      HEADLAMP_CLUSTER="kind-${CLUSTER}" npx playwright test "$@"
     ;;
   desktop)
     shift
     npm run build
-    install_to "$HOME/.config/Headlamp/plugins/istio-headlamp-plugin"
+    # The desktop app keeps its plugins in its data folder, which on macOS is
+    # not ~/.config.
+    if [ "$(uname)" = Darwin ]; then
+      plugins="$HOME/Library/Application Support/Headlamp/plugins"
+    else
+      plugins="$HOME/.config/Headlamp/plugins"
+    fi
+    install_to "$plugins/istio-headlamp-plugin"
     for extra in "$@"; do install_to "$extra/istio-headlamp-plugin"; done
     echo "Reload the page (or restart the desktop app) to pick it up."
     shasum -a 256 dist/main.js

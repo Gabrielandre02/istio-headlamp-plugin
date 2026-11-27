@@ -34,6 +34,8 @@ The package contains the built plugin; Node.js and npm are not needed to install
 ### Headlamp desktop (Linux / macOS)
 
 Download and extract the package into the desktop app's plugin directory:
+`~/.config/Headlamp/plugins` on Linux, `~/Library/Application Support/Headlamp/plugins`
+on macOS.
 
 ```sh
 VERSION="$(curl -fsSL https://api.github.com/repos/eottabom/istio-headlamp-plugin/releases/latest \
@@ -41,8 +43,13 @@ VERSION="$(curl -fsSL https://api.github.com/repos/eottabom/istio-headlamp-plugi
 ARCHIVE="eottabom-istio-headlamp-plugin-${VERSION}.tar.gz"
 curl -fL --output "$ARCHIVE" \
   "https://github.com/eottabom/istio-headlamp-plugin/releases/download/v${VERSION}/${ARCHIVE}"
-mkdir -p "$HOME/.config/Headlamp/plugins"
-tar -xzf "$ARCHIVE" -C "$HOME/.config/Headlamp/plugins"
+if [ "$(uname)" = Darwin ]; then
+  PLUGINS="$HOME/Library/Application Support/Headlamp/plugins"
+else
+  PLUGINS="$HOME/.config/Headlamp/plugins"
+fi
+mkdir -p "$PLUGINS"
+tar -xzf "$ARCHIVE" -C "$PLUGINS"
 ```
 
 On Windows, extract the same package into `%APPDATA%\Headlamp\Config\plugins`.
@@ -134,7 +141,7 @@ Install the resulting `eottabom-istio-headlamp-plugin-<version>.tar.gz` using th
 steps above. When copying a build manually, copy the **contents** of `dist/` and
 `package.json` into `plugins/istio-headlamp-plugin/`; `main.js` must be directly inside
 that directory, not inside a nested `dist/` directory. `dev/dev.sh desktop` copies this
-layout to the Linux/macOS desktop directory and any additional paths you pass to it.
+layout to the desktop directory for your OS (see above) and any additional paths you pass to it.
 
 ### What it needs to read
 
@@ -275,13 +282,14 @@ python3 scripts/capture-fixtures.py --context kind-istio-dev   # refresh fixture
 `e2e/` holds Playwright tests that load the built plugin into a real Headlamp and check the
 pages against the sample mesh: the Istio pages, the L7 enforcement warning, and the sections
 added to Headlamp's own Service and Namespace pages. `dev/dev.sh e2e` starts Headlamp in Docker
-on the local dev cluster and runs them; the **E2E** workflow does the same on every push to
-`main`.
+on the local dev cluster and runs them; the **E2E** workflow does the same on every pull
+request that is ready for review. It does not run again on `main`, since a pull request can
+only merge once this check has passed on a branch that is up to date with `main`.
 
 ```sh
 ./dev/dev.sh cluster   # once: kind + Istio ambient + samples
 ./dev/dev.sh serve     # build and leave Headlamp running on :4466 (PROFILE=base adds /headlamp on :4467)
-./dev/dev.sh e2e       # own container on :4476; extra args go to `playwright test`
+./dev/dev.sh e2e       # own containers on :4476 and :4477/headlamp, runs the tests against both; extra args go to `playwright test`
 ./dev/dev.sh down      # stop the containers
 ```
 
