@@ -27,7 +27,7 @@ export function MeshBadge({ state }: { state: MeshState }) {
         color={style.color}
         variant={state.mode === 'out-of-mesh' || state.mode === 'infra' ? 'outlined' : 'filled'}
         icon={<Icon icon={style.icon} width={16} />}
-        label={style.label}
+        label={state.share ? `${style.label} ${state.share}` : style.label}
       />
     </Tooltip>
   );
