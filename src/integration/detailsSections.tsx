@@ -8,7 +8,7 @@ import { Mono, SpecTable } from '../components/detail/Table';
 import { useMeshStatus, useRootNamespace } from '../lib/detect';
 import { hostMatchesService } from '../lib/host';
 import { REVISION, USE_WAYPOINT } from '../lib/labels';
-import { namespaceMeshState, podMeshState, resolveWaypoint } from '../lib/mesh';
+import { namespaceMeshState, podMeshState, proxyContainer, resolveWaypoint } from '../lib/mesh';
 import { policiesForService } from '../lib/servicePolicies';
 import { detailRouteName, IstioObject } from '../resources/base';
 import { DestinationRule, ServiceEntry, VirtualService } from '../resources/networking';
@@ -191,9 +191,7 @@ export function PodIstioSection({ resource }: { resource: KubeObject }) {
   const waypoint = resolveWaypoint(resource, ns as any);
   const unknown = waypointUnknown(resource, namespaces, ns);
 
-  const proxy = ((resource.jsonData as any)?.spec?.containers ?? []).find(
-    (c: any) => c.name === 'istio-proxy'
-  );
+  const proxy = proxyContainer(resource);
 
   return (
     <SectionBox title="Istio">
