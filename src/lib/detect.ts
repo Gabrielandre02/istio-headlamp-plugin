@@ -1,20 +1,35 @@
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
+import { KubeObject } from '@kinvolk/headlamp-plugin/lib/k8s/cluster';
 import { useMemo } from 'react';
 import {
+  crdState,
   dataPlaneNamespaces,
   dataPlaneResourceUnknown,
   forbiddenDataPlaneNamespaces,
   isIstiod,
+  ManagedControlPlane,
+  managedControlPlanes,
+  managedLookup,
   useControlPlaneNamespace,
 } from './controlPlane';
 import { isIstioCrdGroup } from './detectParse';
-import { WAYPOINT_GATEWAY_CLASS } from './labels';
+import { ISTIO_SYSTEM_NAMESPACE, WAYPOINT_GATEWAY_CLASS } from './labels';
 import { useMeshConfig } from './meshConfig';
 
 const CRD = K8s.ResourceClasses.CustomResourceDefinition;
 const Deployment = K8s.ResourceClasses.Deployment;
 const DaemonSet = K8s.ResourceClasses.DaemonSet;
 const GatewayClass = K8s.ResourceClasses.Gateway;
+
+/** GKE's managed Cloud Service Mesh control plane, one per release channel. */
+class ControlPlaneRevision extends KubeObject<any> {
+  static kind = 'ControlPlaneRevision';
+  static apiName = 'controlplanerevisions';
+  static apiVersion = ['mesh.cloud.google.com/v1beta1', 'mesh.cloud.google.com/v1alpha1'];
+  static isNamespaced = true;
+}
+const REVISION_CRD = `${ControlPlaneRevision.apiName}.mesh.cloud.google.com`;
+const NO_REVISIONS: ControlPlaneRevision[] = [];
 
 export interface IstioCrdInfo {
   /** `plural.group`, e.g. `destinationrules.networking.istio.io`. */
@@ -77,6 +92,8 @@ export interface MeshStatus {
   namespace: string;
   /** istiod deployments in that namespace, usually one per revision. */
   istiod: any[];
+  /** Google-managed control planes (GKE Cloud Service Mesh), which run no istiod in the cluster. */
+  managed: ManagedControlPlane[];
   /** ztunnel DaemonSet; present only in ambient installs. */
   ztunnel: any | null;
   /** istio-cni DaemonSet; required by ambient, optional otherwise. */
@@ -89,8 +106,13 @@ export interface MeshStatus {
   gatewayLoading: boolean;
   /** Whether the control plane is still being checked. */
   controlPlaneLoading: boolean;
-  /** A missing control plane could not be confirmed because Deployment access was denied. */
+  /**
+   * A missing control plane could not be confirmed because Deployment or
+   * ControlPlaneRevision access was denied.
+   */
   controlPlaneUnknown: boolean;
+  /** The Deployments were readable; only ControlPlaneRevision access was denied. */
+  managedUnknown: boolean;
   /** Namespaces where a namespaced control-plane query was forbidden. */
   controlPlaneForbiddenNamespaces: string[];
   /** True when a ztunnel DaemonSet was found; this does not imply it is healthy. */
@@ -128,14 +150,28 @@ export function useMeshStatus(): MeshStatus {
   const daemonSetQuery = DaemonSet.useList({ namespace: dataPlane });
   const [daemonSets] = daemonSetQuery;
   const daemonSetErrors = daemonSetQuery.errors;
+  const revisionQuery = ControlPlaneRevision.useList({ namespace: ISTIO_SYSTEM_NAMESPACE });
+  // A failed probe hands back a new empty array on every render, which would
+  // defeat the memo below on every cluster that is not GKE.
+  const revisions = revisionQuery.items?.length ? revisionQuery.items : NO_REVISIONS;
+  // Shares react-query's cache with useIstioCrds.
+  const [crds, crdError] = CRD.useList();
+  const revisionCrd = crdState(crds, crdError, REVISION_CRD);
+  // While Headlamp probes the apiVersions, the list is null with isLoading
+  // false; calling that "not managed" flashed the "No istiod" warning.
+  const lookup = managedLookup(revisionCrd, revisionQuery.items !== null, revisionQuery.errors);
+  const revisionsForbidden = lookup === 'forbidden';
+  const revisionsPending = lookup === 'pending';
   const gatewayQuery = GatewayClass.useList();
   const [gateways, gatewayError] = gatewayQuery;
 
   return useMemo(() => {
     const istiod = (deployments ?? []).filter(isIstiod);
+    const managed = managedControlPlanes(revisions.map(r => r.jsonData));
+    const deploymentsForbidden =
+      controlPlane.unknown || (deploymentErrors ?? []).some(error => error?.status === 403);
     const controlPlaneUnknown =
-      istiod.length === 0 &&
-      (controlPlane.unknown || (deploymentErrors ?? []).some(error => error?.status === 403));
+      istiod.length === 0 && managed.length === 0 && (deploymentsForbidden || revisionsForbidden);
     const ztunnel = (daemonSets ?? []).find(d => d.metadata.name.includes('ztunnel')) ?? null;
     const cni = (daemonSets ?? []).find(d => d.metadata.name.includes('istio-cni')) ?? null;
 
@@ -146,8 +182,15 @@ export function useMeshStatus(): MeshStatus {
     return {
       namespace: controlPlane.namespace,
       istiod,
-      controlPlaneLoading: controlPlane.loading || deploymentQuery.isLoading,
+      managed,
+      // The revisions only matter without an istiod; do not hold a regular
+      // cluster on a probe that is expected to 404.
+      controlPlaneLoading:
+        controlPlane.loading ||
+        deploymentQuery.isLoading ||
+        (istiod.length === 0 && revisionsPending),
       controlPlaneUnknown,
+      managedUnknown: revisionsForbidden && !deploymentsForbidden,
       controlPlaneForbiddenNamespaces: [
         ...new Set([
           ...controlPlane.forbiddenNamespaces,
@@ -175,6 +218,9 @@ export function useMeshStatus(): MeshStatus {
     deploymentQuery.isLoading,
     deploymentErrors,
     deployments,
+    revisions,
+    revisionsPending,
+    revisionsForbidden,
     daemonSetQuery.isLoading,
     daemonSets,
     daemonSetErrors,

@@ -6,6 +6,7 @@ import { ReactNode, useMemo } from 'react';
 import { MeshBadge } from '../components/common/Badges';
 import { ChipList } from '../components/common/SpecSection';
 import { Mono, SpecTable } from '../components/detail/Table';
+import { managedStatusNote } from '../lib/controlPlaneParse';
 import { istiodVersion, useIstioCrds, useMeshStatus } from '../lib/detect';
 import { WAYPOINT_FOR } from '../lib/labels';
 import { namespaceMeshState, resolveWaypoint } from '../lib/mesh';
@@ -33,7 +34,12 @@ export function MeshOverview() {
     };
   }, [namespaces]);
 
-  if (!status.controlPlaneLoading && !status.controlPlaneUnknown && status.istiod.length === 0) {
+  if (
+    !status.controlPlaneLoading &&
+    !status.controlPlaneUnknown &&
+    status.istiod.length === 0 &&
+    status.managed.length === 0
+  ) {
     return (
       <SectionBox title="Istio">
         <Alert severity="warning">
@@ -46,6 +52,8 @@ export function MeshOverview() {
   }
 
   const version = istiodVersion(status.istiod);
+  const managedOnly = status.istiod.length === 0 && status.managed.length > 0;
+  const managedNote = managedStatusNote(status.managed);
 
   return (
     // Headlamp's own pages get their breathing room from the layout; a plugin
@@ -69,15 +77,21 @@ export function MeshOverview() {
               ? 'Loading…'
               : status.controlPlaneUnknown
               ? 'Cannot determine'
+              : managedOnly
+              ? 'Managed'
               : version ?? 'Not found'
           }
           detail={
             status.controlPlaneLoading
-              ? 'Checking Deployments'
+              ? 'Checking the control plane'
               : status.controlPlaneUnknown
-              ? `Deployment access denied in ${
-                  status.controlPlaneForbiddenNamespaces.join(', ') || 'the cluster'
-                }`
+              ? status.managedUnknown
+                ? 'ControlPlaneRevision access denied in istio-system'
+                : `Deployment access denied in ${
+                    status.controlPlaneForbiddenNamespaces.join(', ') || 'the cluster'
+                  }`
+              : managedOnly
+              ? `Google-managed: ${status.managed.map(m => m.name).join(', ')}${managedNote}`
               : `${status.istiod.length} istiod deployment${status.istiod.length === 1 ? '' : 's'}`
           }
           tone={
@@ -85,6 +99,10 @@ export function MeshOverview() {
               ? 'warn'
               : status.controlPlaneUnknown
               ? 'warn'
+              : managedOnly
+              ? managedNote
+                ? 'warn'
+                : 'ok'
               : status.istiod.length > 0
               ? 'ok'
               : 'bad'

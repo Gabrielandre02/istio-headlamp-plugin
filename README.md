@@ -144,6 +144,7 @@ The plugin needs read access to:
 - **Kubernetes resources:** Namespaces, Services, Pods, Deployments and DaemonSets (ztunnel and istio-cni are looked up in the control-plane namespace, `istio-system` and `kube-system`)
 - **Optional:** Deployments across namespaces, to find the istiod control-plane namespace (such as `aks-istio-system` on the AKS add-on; falls back to `istio-system`)
 - **Optional:** ConfigMaps in that namespace, to find a custom mesh root namespace (falls back to the control-plane namespace)
+- **Optional:** ControlPlaneRevisions (`mesh.cloud.google.com`) in `istio-system`, to recognise a GKE managed control plane (if that read is denied and no istiod is found, the overview says it cannot determine the control plane)
 
 Views that cannot read something say so rather than guessing.
 
