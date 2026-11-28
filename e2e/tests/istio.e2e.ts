@@ -11,7 +11,8 @@ import { expect, Page, test } from '@playwright/test';
  */
 
 const CLUSTER = process.env.HEADLAMP_CLUSTER ?? 'kind-istio-dev';
-const go = (page: Page, path: string) => page.goto(`/c/${CLUSTER}${path}`);
+// Relative, so the path stays under a base URL such as /headlamp/.
+const go = (page: Page, path: string) => page.goto(`c/${CLUSTER}${path}`);
 
 /** The Istio section Headlamp's own detail pages get from the plugin. */
 const istioSection = (page: Page) =>

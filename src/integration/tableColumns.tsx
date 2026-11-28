@@ -2,7 +2,13 @@ import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { KubeObject } from '@kinvolk/headlamp-plugin/lib/k8s/cluster';
 import { Typography } from '@mui/material';
 import { MeshBadge } from '../components/common/Badges';
-import { namespaceMeshState, podMeshState } from '../lib/mesh';
+import {
+  namespaceMeshState,
+  namespaceOf,
+  podMeshState,
+  workloadMeshState,
+  workloadPods,
+} from '../lib/mesh';
 
 /**
  * Adds a "Mesh" column to Headlamp's own Pod and workload lists.
@@ -16,29 +22,36 @@ import { namespaceMeshState, podMeshState } from '../lib/mesh';
 function PodMeshCell({ pod }: { pod: KubeObject }) {
   // react-query dedupes this across every cell in the table.
   const [namespaces] = K8s.ResourceClasses.Namespace.useList();
-  const ns = (namespaces ?? []).find(n => n.metadata.name === pod.metadata.namespace) ?? null;
+  const ns = namespaceOf(pod, namespaces);
   return <MeshBadge state={podMeshState(pod, ns as any)} />;
 }
 
 function WorkloadMeshCell({ workload }: { workload: KubeObject }) {
   const [namespaces] = K8s.ResourceClasses.Namespace.useList();
-  const ns = (namespaces ?? []).find(n => n.metadata.name === workload.metadata.namespace) ?? null;
+  const ns = namespaceOf(workload, namespaces);
 
-  const podTemplate = (workload.jsonData as any)?.spec?.template;
-  if (!podTemplate) {
-    return (
-      <Typography variant="body2" color="text.disabled">
-        —
-      </Typography>
-    );
+  // Headlamp's workload page lists every pod for its charts, so this reads
+  // the same cached list instead of asking again for each row.
+  const [pods, podsError] = K8s.ResourceClasses.Pod.useList();
+
+  const dash = (
+    <Typography variant="body2" color="text.disabled">
+      —
+    </Typography>
+  );
+  // A CronJob has no selector and never runs pods of its own.
+  if (!(workload.jsonData as any)?.spec?.selector) return dash;
+
+  const state = pods && workloadMeshState(workloadPods(workload, pods), ns as any);
+  if (state) return <MeshBadge state={state} />;
+  // A failed list can still hold the pods of the namespaces that answered, so
+  // finding none here does not mean the workload has none.
+  if (podsError) {
+    return <MeshBadge state={{ mode: 'unknown', reason: 'pods not readable' }} />;
   }
-  // The pod template is enough to answer the question without listing pods.
-  const pseudoPod = {
-    metadata: podTemplate.metadata ?? {},
-    jsonData: { spec: podTemplate.spec ?? {} },
-  } as unknown as KubeObject;
-
-  return <MeshBadge state={podMeshState(pseudoPod, ns as any)} />;
+  // "—" means no pods; until the list arrives we do not know that yet.
+  if (!pods) return <MeshBadge state={{ mode: 'unknown', reason: 'pods still loading' }} />;
+  return dash;
 }
 
 const meshColumn = (render: (item: any) => JSX.Element) => ({
